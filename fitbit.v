@@ -29,6 +29,7 @@ module fitbit(
     
     wire clk1s;
     wire clk128hz;
+    wire dppass;
     
     clkdiv1s c0 (clk,clk1s);
     clkdiv128hz c1 (clk,clk128hz);
@@ -56,7 +57,7 @@ module fitbit(
     
     wire binout;
     
-    modulecycler m0 (saturated,distance,highactsecs,secondsover32,clk1s,binout,sat,dp);
+    modulecycler m0 (saturated,distance,highactsecs,secondsover32,clk1s,binout,sat,dppass);
     
     wire [3:0] out3, out2, out1, out0;
     
@@ -69,7 +70,7 @@ module fitbit(
     hexto7segment h2 (out2,sseg2);
     hexto7segment h3 (out3,sseg3);
     
-    displayLogic d1 (clk,sseg0,sseg1,sseg2,sseg3,an0,an1,an2,an3,sseg);
+    displayLogic d1 (clk,dppass,sseg0,sseg1,sseg2,sseg3,an0,an1,an2,an3,dp,sseg);
     
 endmodule
 
@@ -102,15 +103,18 @@ endmodule
 
 //rotates 4 digits on 4 seven segment displays
 module displayLogic(
-    input clk,
+    input clk, dpin,
     input [6:0] sseg0, sseg1, sseg2, sseg3,
-    output reg an0, an1, an2, an3,
+    output reg an0, an1, an2, an3, 
+    output dpout,
     output reg [6:0] sseg
     );
     reg [1:0] state, next_state;
     initial begin
         state = 2'b00;
     end 
+    
+    assign dpout = dpin | an1;
     
     always@(*) begin
     case(state)
@@ -302,10 +306,10 @@ module modulecycler(
     
     always@(*) begin
         case({counter[2],counter[1]})
-            2'b00 : begin out <= steps; if(steps == 9999) sat <= 1'b1;  else sat <= 1'b0; dp <= 1'b0; end
-            2'b01 : begin out <= distance; dp <= 1'b1; sat <= 1'b0; end
-            2'b10 : begin out <= over32; dp <= 1'b0; sat <= 1'b0; end
-            2'b11 : begin out <= highactivity; dp <= 1'b0; sat <= 1'b0; end         
+            2'b00 : begin out <= steps; if(steps == 9999) sat <= 1'b1;  else sat <= 1'b0; dp <= 1'b1; end
+            2'b01 : begin out <= distance; dp <= 1'b0; sat <= 1'b0; end
+            2'b10 : begin out <= over32; dp <= 1'b1; sat <= 1'b0; end
+            2'b11 : begin out <= highactivity; dp <= 1'b1; sat <= 1'b0; end         
         endcase
     end
     
