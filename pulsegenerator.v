@@ -27,37 +27,39 @@ module pulsegenerator(
 	output reg clkSec
 );
 
-reg [26:0] COUNT = 100000000;
-reg [26:0] clkSpeed;
-reg [26:0] clkCount;
-reg [26:0] i;
-reg [9:0] realTime;
+reg [25:0] COUNT = 256;
+reg [25:0] clkSpeed;
+reg [25:0] clkCount = 0;
+reg [25:0] i = 0;
+reg [9:0] realTime,RTtemp =0;
 
 	initial begin
 		pulse = 1'b0;
 		clkSec = 1'b0;
-		realTime =0;
-		i = 0;
-		clkCount = 0;
+	end
+	
+	always@(*) begin
+	   if(mode == 2'b11) realTime <= RTtemp;
+	   else realTime <= 0;
 	end
 	
 	always @(posedge clk) begin
 	   
 	   if (start == 1) //only do stuff if start is high
 	       begin
-	           if(clkCount == 100000000) //everytime the clock reaches the number of cycles that equates to a second in real time, increment real time and set the clock to the first cycle of the new count
+	           if(clkCount == COUNT) //everytime the clock reaches the number of cycles that equates to a second in real time, increment real time and set the clock to the first cycle of the new count
 	               begin
-	               realTime <= realTime + 1;
+	               if(mode == 2'b11) RTtemp <= realTime + 1;
 	               clkCount <= 1;
 	               end
 	           else clkCount <= clkCount + 1;
 	           
-	           if(clkCount%50000000 == 0) clkSec <= ~clkSec;
+	           if((clkCount%(COUNT/2)) == 0) clkSec <= ~clkSec;
 	           
                if ((mode == 2'b11)&&(144 < realTime))   pulse = 1'b0; //if it's in hybrid mode and over 144 seconds, set the pulse to 0
                else //otherwise, toggle pulse when i increments to the value of clkSpeed
                    begin
-                       if (i == clkSpeed)
+                       if (i >= clkSpeed)
                                begin
                                    i = 1;
                                    pulse = ~pulse;
@@ -65,7 +67,6 @@ reg [9:0] realTime;
                            else
                                begin
                                    i = i+1;
-                                   pulse = ~pulse;
                                end
 	               end
 	       end
