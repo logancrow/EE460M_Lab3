@@ -24,19 +24,16 @@ module fitbit(
     input [1:0] mode,
     input reset, start, clk,
     output sat, an0, an1, an2, an3, dp,
-    output [6:0] sseg
+    output [6:0] sseg//,
+    //output clkout
     );
     
     wire clk1s;
-    wire clk128hz;
     wire dppass;
-    
-    clkdiv1s c0 (clk,clk1s);
-    clkdiv128hz c1 (clk,clk128hz);
-    
+    //assign clkout = clk1s;
     wire pulse;
     
-    pulsegenerator p0 (mode,clk,clk128hz,clk1s,reset,start,pulse);
+    pulsegenerator p0 (mode,clk,start,pulse,clk1s);
     
     wire [20:0] steps;
     wire [13:0] saturated;
@@ -62,6 +59,8 @@ module fitbit(
     wire [3:0] out3, out2, out1, out0;
     
     binconverter b0 (binout,out3,out2,out1,out0);
+    
+    //binconverter b1 (saturated,out3,out2,out1,out0);
     
     wire [6:0] sseg3, sseg2, sseg1, sseg0;
     
@@ -130,41 +129,6 @@ module displayLogic(
         end              
 endmodule
 
-
-//generates pulse to send to step counter based on mode
-module pulsegenerator(
-    input [1:0] mode,
-    input clk, clk128hz, clk1s, reset, start,
-    output reg pulse
-    );
-    
-    wire clk64hz, clk32hz;
-    
-    clkdiv2 c2 (clk128hz,clk64hz);
-    clkdiv2 c3 (clk64hz,clk32hz);
-    
-    reg off;
-    
-    initial begin
-        off = 1'b1;
-        pulse = 1'b0;
-    end
-    
-    always@(posedge reset) off <= 1'b1;
-    always@(posedge start) off <= 1'b0;
-    
-    always@(*) begin
-        case(mode)
-            2'b00 : begin if(!off) pulse <= clk32hz; else pulse = 1'b0; end
-            2'b01 : begin if(!off) pulse <= clk64hz; else pulse = 1'b0; end
-            2'b10 : begin if(!off) pulse <= clk128hz; else pulse = 1'b0; end
-            //need to write code for case 4
-        endcase
-        
-    end
-  
-endmodule
-
 //module that takes input from the pulse generator and outputs step count and saturated step count
 module stepcounter(
     input pulse, reset,
@@ -172,21 +136,22 @@ module stepcounter(
     output reg [13:0] saturated
     );
     
+    reg [20:0] temp;
+    
     initial begin
         steps = 0;
         saturated = 0;
+        temp = 0;
     end
     
-    always@(posedge reset) begin 
-        steps <= 0; 
-        saturated <= 0;
+    always@(*) begin
+        steps <= temp & (!reset);
+        if(steps > 9999) saturated <= 9999; 
+        else saturated <= steps;
     end
     
     always@(posedge pulse) begin
-        steps <= steps + 1;
-        if(steps > 9999) 
-             saturated <= 9999; 
-             else saturated <= steps; 
+        temp <= steps + 1; 
     end
 
 endmodule
@@ -216,8 +181,8 @@ module stepsover32(
     output reg [3:0] seconds
     );
     
-    reg [3:0] counter;
-    reg [20:0] prev_steps;
+    reg [3:0] counter, temps, tempc;
+    reg [20:0] prev_steps, tempps;
     reg off;
     
     initial begin 
@@ -225,24 +190,25 @@ module stepsover32(
         prev_steps = 0;
         seconds = 0;
         off = 1'b1;
+        tempps = 0;
+        temps = 0;
+        tempc = 0;
     end
     
-    always@(posedge reset) begin
-        off <= 1'b1;
-        counter <= 0;
-        prev_steps <= 0;
-        seconds <= 0;
+    always@(*) begin
+        if(start ~^ reset) off <= ((~start) & reset);
+        prev_steps <= tempps & (~reset);
+        seconds <= temps & (~reset);
+        counter <= tempc & (~reset);
     end
-    
-    always@(posedge start) off <= 1'b0;
     
     always@(posedge clk) begin
         if(!off) begin
             if(counter < 9) begin
-                counter <= counter + 1;
-                if((steps - prev_steps) > 32) seconds <= seconds + 1;
+                tempc <= counter + 1;
+                if((steps - prev_steps) > 32) temps <= seconds + 1;
             end
-            prev_steps <= steps;
+            tempps <= steps;
         end
     end
     
@@ -256,34 +222,34 @@ module highactivity(
     );
     
     reg off;
-    reg [13:0] counter;
-    reg [20:0] prev_steps;
+    reg [13:0] counter, tempc, temps;
+    reg [20:0] prev_steps, tempps;
     
     initial begin
         off = 1'b1;
         counter = 0;
         prev_steps = 0;
+        tempc = 0;
+        temps = 0;
+        tempps = 0;
     end
     
-    always@(posedge reset) begin
-        off <= 1'b1;
-        counter <= 0;
-        seconds <= 0;
-        prev_steps <= 0;
-    end
-    
-    always@(posedge start) begin
-        off <= 1'b0;
-    end
+    always@(*) begin
+        if(start ~^ reset) off <= ((~start) & reset);
+        prev_steps <= tempps & (~reset);
+        seconds <= temps & (~reset);
+        counter <= tempc & (~reset);
+    end    
     
     always@(posedge clk) begin
         if(!off) begin
             if((steps - prev_steps) > 64) begin
-                counter = counter + 1;
-                if(counter == 60) seconds  <= seconds + 60;
-                if(counter > 60) seconds <= seconds + 1;
+                tempc <= counter + 1;
+                if(counter == 60) temps  <= seconds + 60;
+                else if(counter > 60) temps <= seconds + 1;
             end
-            prev_steps <= steps;
+            else tempc <= 0;
+            tempps <= steps;
         end
     end
     
@@ -306,7 +272,7 @@ module modulecycler(
     
     always@(*) begin
         case({counter[2],counter[1]})
-            2'b00 : begin out <= steps; if(steps == 9999) sat <= 1'b1;  else sat <= 1'b0; dp <= 1'b1; end
+            2'b00 : begin out <= steps; dp <= 1'b1; if(steps == 9999) sat <= 1'b1;  else sat <= 1'b0; end 
             2'b01 : begin out <= distance; dp <= 1'b0; sat <= 1'b0; end
             2'b10 : begin out <= over32; dp <= 1'b1; sat <= 1'b0; end
             2'b11 : begin out <= highactivity; dp <= 1'b1; sat <= 1'b0; end         
@@ -331,29 +297,3 @@ module binconverter(
     
 endmodule
 
-//divides clock to a 1 second period
-module clkdiv1s(
-    input clk,
-    output clk_out
-    );
-    
-endmodule
-
-//divides clock to 128 Hz
-module clkdiv128hz(
-    input clk,
-    output clk_out
-    );
-    
-endmodule
-
-//output clock is half the frequency of the input clock
-module clkdiv2(
-    input clk,
-    output reg clk_out
-    );
-    initial clk_out = 0;
-    
-    always@(posedge clk) clk_out = !clk_out;
-
-endmodule
