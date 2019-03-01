@@ -50,7 +50,7 @@ wire clkout;
     );
     
     initial begin
-    mode = 2'b00;
+    mode = 2'b10;
     reset = 0;
     start = 0;
     clk = 0;

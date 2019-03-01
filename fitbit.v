@@ -24,8 +24,8 @@ module fitbit(
     input [1:0] mode,
     input reset, start, clk,
     output sat, an0, an1, an2, an3, dp,
-    output [6:0] sseg//,
-    //output clkout
+    output [6:0] sseg,
+    output clkout
     );
     
     wire clk1s;
@@ -52,13 +52,14 @@ module fitbit(
     
     highactivity a0 (steps,clk1s,reset,start,highactsecs);
     
-    wire binout;
+    wire [13:0] binout;
     
     modulecycler m0 (saturated,distance,highactsecs,secondsover32,clk1s,binout,sat,dppass);
     
     wire [3:0] out3, out2, out1, out0;
     
     binconverter b0 (binout,out3,out2,out1,out0);
+    
     
     wire [6:0] sseg3, sseg2, sseg1, sseg0;
     
@@ -118,7 +119,7 @@ module displayLogic(
         2'b00 : begin {an3, an2, an1, an0} = 4'b1110; next_state = 2'b01; sseg = sseg0; end
         2'b01 : begin {an3, an2, an1, an0} = 4'b1101; next_state = 2'b10; sseg = sseg1; end
         2'b10 : begin {an3, an2, an1, an0} = 4'b1011; next_state = 2'b11; sseg = sseg2; end
-        2'b11 : begin {an3, an2, an1, an0} = 4'b0111; next_state = 2'b00; sseg = sseg0; end
+        2'b11 : begin {an3, an2, an1, an0} = 4'b0111; next_state = 2'b00; sseg = sseg3; end
         endcase
     end
     
@@ -167,7 +168,7 @@ module distancecovered(
     
     initial decimal = 0;
     
-    assign distance = (10*(steps/2048)) | decimal;
+    assign distance = (10*(steps/2048)) + decimal;
     
     always@(*) begin
         if((steps % 2048) > 1024) decimal <= 5;
@@ -201,14 +202,14 @@ module stepsover32(
     
     always@(*) begin
         if(start ~^ reset) off <= ((~start) & reset);
-        prev_steps <= tempps & (~resetvector[3:0]);
+        prev_steps <= tempps & (~resetvector);
         seconds <= temps & (~resetvector[3:0]);
-        counter <= tempc & (~resetvector);
+        counter <= tempc & (~resetvector[3:0]);
     end
     
     always@(posedge clk) begin
         if(!off) begin
-            if(counter < 9) begin
+            if(counter < 10) begin
                 tempc <= counter + 1;
                 if((steps - prev_steps) > 32) temps <= seconds + 1;
             end
@@ -298,9 +299,9 @@ module binconverter(
     );
     
     assign out0 = in%10;
-    assign out1 = (in%100) - out0;
-    assign out2 = (in%1000) - out1 - out0;
-    assign out3 = in - out2 - out1 - out0;
+    assign out1 = ((in%100) - out0)/10;
+    assign out2 = ((in%1000) - (out1*10) - out0)/100;
+    assign out3 = (in - (out2*100) - (out1*10) - out0)/1000;
     
 endmodule
 

@@ -27,7 +27,7 @@ module pulsegenerator(
 	output reg clkSec
 );
 
-reg [25:0] COUNT = 256;
+reg [26:0] COUNT = 100000000;
 reg [25:0] clkSpeed;
 reg [25:0] clkCount = 0;
 reg [25:0] i = 0;
@@ -103,19 +103,3 @@ reg [9:0] realTime,RTtemp =0;
 
 	
 endmodule
-
-// module clkDivSecond( input clk, input reset,
-//     output reg clk_out);
- 
-//     reg [25:0] COUNT;
-   
-//     always @(posedge clk)
-//     begin
-//         if (COUNT == 49999999) begin
-//         clk_out = ~clk_out;
-//         COUNT = 0;
-//         end
-       
-//     else COUNT = COUNT + 1;
-//     end
-// endmodule
