@@ -30,7 +30,7 @@ module fitbit(
     
     wire clk1s;
     wire dppass;
-    //assign clkout = clk1s;
+    assign clkout = clk1s;
     wire pulse;
     
     pulsegenerator p0 (mode,clk,start,pulse,clk1s);
@@ -59,8 +59,6 @@ module fitbit(
     wire [3:0] out3, out2, out1, out0;
     
     binconverter b0 (binout,out3,out2,out1,out0);
-    
-    //binconverter b1 (saturated,out3,out2,out1,out0);
     
     wire [6:0] sseg3, sseg2, sseg1, sseg0;
     
@@ -137,6 +135,9 @@ module stepcounter(
     );
     
     reg [20:0] temp;
+    wire [20:0] resetvector;
+    
+    assign resetvector = {reset,reset,reset,reset,reset,reset,reset,reset,reset,reset,reset,reset,reset,reset,reset,reset,reset,reset,reset,reset,reset};
     
     initial begin
         steps = 0;
@@ -145,7 +146,7 @@ module stepcounter(
     end
     
     always@(*) begin
-        steps <= temp & (!reset);
+        steps <= temp & (~resetvector);
         if(steps > 9999) saturated <= 9999; 
         else saturated <= steps;
     end
@@ -184,6 +185,9 @@ module stepsover32(
     reg [3:0] counter, temps, tempc;
     reg [20:0] prev_steps, tempps;
     reg off;
+    wire [20:0] resetvector;
+    
+    assign resetvector = {reset,reset,reset,reset,reset,reset,reset,reset,reset,reset,reset,reset,reset,reset,reset,reset,reset,reset,reset,reset,reset};
     
     initial begin 
         counter = 0;
@@ -197,9 +201,9 @@ module stepsover32(
     
     always@(*) begin
         if(start ~^ reset) off <= ((~start) & reset);
-        prev_steps <= tempps & (~reset);
-        seconds <= temps & (~reset);
-        counter <= tempc & (~reset);
+        prev_steps <= tempps & (~resetvector[3:0]);
+        seconds <= temps & (~resetvector[3:0]);
+        counter <= tempc & (~resetvector);
     end
     
     always@(posedge clk) begin
@@ -224,6 +228,9 @@ module highactivity(
     reg off;
     reg [13:0] counter, tempc, temps;
     reg [20:0] prev_steps, tempps;
+    wire [20:0] resetvector;
+        
+    assign resetvector = {reset,reset,reset,reset,reset,reset,reset,reset,reset,reset,reset,reset,reset,reset,reset,reset,reset,reset,reset,reset,reset};
     
     initial begin
         off = 1'b1;
@@ -236,9 +243,9 @@ module highactivity(
     
     always@(*) begin
         if(start ~^ reset) off <= ((~start) & reset);
-        prev_steps <= tempps & (~reset);
-        seconds <= temps & (~reset);
-        counter <= tempc & (~reset);
+        prev_steps <= tempps & (~resetvector);
+        seconds <= temps & (~resetvector[13:0]);
+        counter <= tempc & (~resetvector[13:0]);
     end    
     
     always@(posedge clk) begin
